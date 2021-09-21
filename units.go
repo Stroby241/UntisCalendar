@@ -2,13 +2,17 @@ package main
 
 import (
 	"UnitsAPI"
+	"fmt"
+	ics "github.com/arran4/golang-ical"
 	"log"
+	"math/rand"
+	"os"
 	"time"
 )
 
 var user *UntisAPI.User
 
-const querryDays int = 20
+const querryDays int = 356
 
 type scedule struct {
 	from time.Time
@@ -23,6 +27,9 @@ type date struct {
 var timetable map[date]scedule
 
 func main() {
+
+	log.Printf("Loading Untis Data")
+
 	user = UntisAPI.NewUser(
 		"maarten8",
 		"behn500",
@@ -31,13 +38,11 @@ func main() {
 	err := user.Login()
 	if err != nil {
 		log.Fatal(err)
-		return
 	}
 
 	personalId, err := user.GetPersonId("Maarten", "Behn", false)
 	if err != nil {
 		log.Fatal(err)
-		return
 	}
 
 	startTime := time.Now()
@@ -45,50 +50,24 @@ func main() {
 	untisStartDate := UntisAPI.ToUntisDate(startTime)
 	untisEndDate := UntisAPI.ToUntisDate(endTime)
 
-	//teacherList, err := user.GetTeachers()
-	//if err != nil{ log.Fatal(err); return}
-
-	roomList, err := user.GetRooms()
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
-
 	periods, err := user.GetTimeTable(personalId, 5, untisStartDate, untisEndDate)
 	if err != nil {
 		log.Fatal(err)
-		return
 	}
+
+	user.Logout()
 
 	timetable = map[date]scedule{}
 
 	for _, period := range periods {
-
-		/*
-			var teachers []*UntisAPI.Teacher
-			for _, t := range teacherList {
-				for _, t2 := range period.Teacher {
-					if t.Id == t2 {
-						teachers = append(teachers, &t)
-					}
-				}
-			}
-		*/
-
-		var rooms []*UntisAPI.Room
-		for _, r := range roomList {
-			for _, r2 := range period.Rooms {
-				if r.Id == r2 {
-					rooms = append(rooms, &r)
-				}
-			}
-		}
 
 		periodStartTime := UntisAPI.ToGoTime(period.StartTime)
 		periodEndTime := UntisAPI.ToGoTime(period.EndTime)
 
 		periodDate := date{}
 		periodDate.year, periodDate.month, periodDate.day = UntisAPI.ToGoDate(period.Date).Date()
+
+		log.Printf("\rPassing peroid on day %d.%d.%d", periodDate.day, periodDate.month, periodDate.year)
 
 		day := timetable[periodDate]
 		if day.from.IsZero() {
@@ -104,12 +83,41 @@ func main() {
 		timetable[periodDate] = day
 	}
 
-	/*
-		log.Printf("Date: %02d.%02d.%04d From: %d:%02d Till: %d:%02d\n",
-			periodDate.day, periodDate.month, periodDate.year,
-			periodStartTime.Hour(), periodStartTime.Minute(),
-			periodEndTime.Hour(), periodEndTime.Minute())
-	*/
+	cal := ics.NewCalendar()
 
-	user.Logout()
+	i := 0
+	for date, day := range timetable {
+
+		log.Printf("\rCreateing calendar event for %d.%d.%d", date.day, date.month, date.year)
+
+		event := cal.AddEvent(fmt.Sprintf("%d", rand.Int()))
+		i++
+
+		event.SetCreatedTime(time.Now())
+		event.SetModifiedAt(time.Now())
+		event.SetDtStampTime(time.Now())
+		event.SetSummary("Schule")
+
+		event.SetStartAt(time.Date(date.year, date.month, date.day, day.from.Hour(), day.from.Minute(), 0, 0, time.Local))
+		event.SetEndAt(time.Date(date.year, date.month, date.day, day.till.Hour(), day.till.Minute(), 0, 0, time.Local))
+	}
+
+	t := cal.Serialize()
+
+	f, err := os.Create("untis.ics")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_, err = f.WriteString(t)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = f.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Println("Done")
 }
