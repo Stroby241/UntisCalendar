@@ -1,8 +1,8 @@
 package main
 
 import (
-	"UnitsAPI"
 	"fmt"
+	"github.com/Stroby241/UntisAPI"
 	ics "github.com/arran4/golang-ical"
 	"log"
 	"math/rand"
@@ -12,7 +12,7 @@ import (
 
 var user *UntisAPI.User
 
-const querryDays int = 356
+const querryDays int = 90
 
 type scedule struct {
 	from time.Time
